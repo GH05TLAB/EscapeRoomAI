@@ -214,6 +214,11 @@
     <div id="voterDetails"></div>
 
     <p class="voter-count" id="voterCount"></p>
+
+    <div style="text-align:center; margin-top:32px; padding-top:16px; border-top:1px solid var(--border);">
+      <button onclick="resetMyVote()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem; margin-right:8px;">Vote Again</button>
+      <button onclick="clearAllVotes()" style="background:transparent; border:1px solid var(--danger); color:var(--danger); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem;">Clear All Votes</button>
+    </div>
   </div>
 </div>
 
@@ -623,6 +628,23 @@ function renderResults(votes) {
   const total = selectedVoters.size === 0 ? allVotes.length : votes.length;
   const showing = selectedVoters.size > 0 ? ` (showing ${votes.length} of ${allVotes.length})` : '';
   document.getElementById('voterCount').textContent = `${total} vote${total !== 1 ? 's' : ''} total${showing}`;
+}
+
+function resetMyVote() {
+  if (!confirm('This will let you vote again. Continue?')) return;
+  localStorage.removeItem('escaperoom_voted');
+  location.reload();
+}
+
+async function clearAllVotes() {
+  if (!confirm('Clear ALL votes? This cannot be undone.')) return;
+  try {
+    await fetch(KV_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '[]' });
+    localStorage.removeItem('escaperoom_voted');
+    location.reload();
+  } catch (err) {
+    alert('Failed to clear votes: ' + err.message);
+  }
 }
 </script>
 </body>
