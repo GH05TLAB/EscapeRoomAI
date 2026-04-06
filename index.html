@@ -277,8 +277,10 @@ function renderVoices() {
       <div class="voice-info">
         <div class="voice-name">${v.name}</div>
         ${v.desc ? `<div class="voice-desc">${v.desc}</div>` : ''}
-        <input type="range" class="seek-bar" id="seek-${v.id}" min="0" max="100" value="0"
-               oninput="seekAudio('${v.id}', this.value)" />
+        <input type="range" class="seek-bar" id="seek-${v.id}" min="0" max="1000" value="0"
+               onmousedown="seekStart('${v.id}')" ontouchstart="seekStart('${v.id}')"
+               oninput="seekDrag('${v.id}', this.value)"
+               onchange="seekCommit('${v.id}', this.value)" />
         <div class="time-display" id="time-${v.id}">0:00 / 0:00</div>
       </div>
       <div class="rank-btns">
@@ -290,59 +292,125 @@ function renderVoices() {
   `).join('');
 }
 
-function seekAudio(id, val) {
-  if (currentAudio && currentVoiceId === id && currentAudio.duration) {
-    currentAudio.currentTime = (val / 100) * currentAudio.duration;
+// Pre-loaded audio elements so slider position persists
+const audioCache = {};
+let isSeeking = false;
+
+function getAudio(id) {
+  if (!audioCache[id]) {
+    const voice = voiceMap[id];
+    const audio = new Audio(voice.file);
+    const seek = document.getElementById('seek-' + id);
+    const timeDisp = document.getElementById('time-' + id);
+
+    audio.addEventListener('loadedmetadata', () => {
+      timeDisp.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
+    });
+    audio.addEventListener('timeupdate', () => {
+      if (audio.duration && !isSeeking) {
+        const pct = (audio.currentTime / audio.duration) * 1000;
+        seek.value = pct;
+        timeDisp.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
+        updateSliderFill(seek, pct / 10);
+      }
+    });
+    audio.addEventListener('ended', () => {
+      const btn = document.getElementById('play-' + id);
+      if (btn) { btn.classList.remove('playing'); btn.innerHTML = '&#9654;'; }
+      seek.value = 0;
+      updateSliderFill(seek, 0);
+      timeDisp.textContent = '0:00 / ' + fmtTime(audio.duration);
+      if (currentVoiceId === id) { currentAudio = null; currentVoiceId = null; }
+    });
+    audioCache[id] = audio;
+  }
+  return audioCache[id];
+}
+
+function updateSliderFill(seek, pct) {
+  seek.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--border) ${pct}%)`;
+}
+
+// Called when user starts interacting with a slider
+function seekStart(id) {
+  isSeeking = true;
+}
+
+// Called as user drags the slider — update time display live
+function seekDrag(id, val) {
+  const audio = getAudio(id);
+  if (audio.duration) {
+    const time = (val / 1000) * audio.duration;
+    const timeDisp = document.getElementById('time-' + id);
+    timeDisp.textContent = fmtTime(time) + ' / ' + fmtTime(audio.duration);
+    updateSliderFill(document.getElementById('seek-' + id), val / 10);
   }
 }
 
-function togglePlay(id) {
-  const btn = document.getElementById('play-' + id);
+// Called when user releases the slider — switch to this voice and play from position
+function seekCommit(id, val) {
+  isSeeking = false;
 
-  // Stop current audio if playing
-  if (currentAudio) {
+  // Stop previous voice if different
+  if (currentAudio && currentVoiceId !== id) {
     currentAudio.pause();
-    currentAudio.currentTime = 0;
     const prevBtn = document.getElementById('play-' + currentVoiceId);
     if (prevBtn) { prevBtn.classList.remove('playing'); prevBtn.innerHTML = '&#9654;'; }
-    const prevSeek = document.getElementById('seek-' + currentVoiceId);
-    if (prevSeek) prevSeek.value = 0;
-    const prevTime = document.getElementById('time-' + currentVoiceId);
-    if (prevTime) prevTime.textContent = '0:00 / 0:00';
-    if (currentVoiceId === id) { currentAudio = null; currentVoiceId = null; return; }
   }
 
-  const voice = voiceMap[id];
-  const audio = new Audio(voice.file);
-  const seek = document.getElementById('seek-' + id);
-  const timeDisp = document.getElementById('time-' + id);
+  const audio = getAudio(id);
+  const btn = document.getElementById('play-' + id);
+
+  // Seek to position
+  if (audio.duration) {
+    audio.currentTime = (val / 1000) * audio.duration;
+  } else {
+    // Audio not loaded yet — seek once metadata loads
+    audio.addEventListener('loadedmetadata', function onMeta() {
+      audio.currentTime = (val / 1000) * audio.duration;
+      audio.removeEventListener('loadedmetadata', onMeta);
+    });
+  }
 
   currentAudio = audio;
   currentVoiceId = id;
   btn.classList.add('playing');
   btn.innerHTML = '&#9724;';
+  audio.play();
+}
 
-  audio.addEventListener('loadedmetadata', () => {
-    timeDisp.textContent = '0:00 / ' + fmtTime(audio.duration);
-  });
-  audio.addEventListener('timeupdate', () => {
-    if (audio.duration) {
-      seek.value = (audio.currentTime / audio.duration) * 100;
-      timeDisp.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
-      // Update slider fill via gradient
-      const pct = (audio.currentTime / audio.duration) * 100;
-      seek.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--border) ${pct}%)`;
-    }
-  });
-  audio.addEventListener('ended', () => {
+function togglePlay(id) {
+  const btn = document.getElementById('play-' + id);
+
+  // If this voice is currently playing, pause it
+  if (currentAudio && currentVoiceId === id) {
+    currentAudio.pause();
     btn.classList.remove('playing');
     btn.innerHTML = '&#9654;';
-    seek.value = 0;
-    seek.style.background = 'var(--border)';
-    timeDisp.textContent = '0:00 / ' + fmtTime(audio.duration);
     currentAudio = null;
     currentVoiceId = null;
-  });
+    return;
+  }
+
+  // Stop previous voice if playing
+  if (currentAudio && currentVoiceId !== id) {
+    currentAudio.pause();
+    const prevBtn = document.getElementById('play-' + currentVoiceId);
+    if (prevBtn) { prevBtn.classList.remove('playing'); prevBtn.innerHTML = '&#9654;'; }
+  }
+
+  const audio = getAudio(id);
+  const seek = document.getElementById('seek-' + id);
+
+  // Play from wherever the slider is positioned
+  if (audio.duration) {
+    audio.currentTime = (seek.value / 1000) * audio.duration;
+  }
+
+  currentAudio = audio;
+  currentVoiceId = id;
+  btn.classList.add('playing');
+  btn.innerHTML = '&#9724;';
   audio.play();
 }
 
