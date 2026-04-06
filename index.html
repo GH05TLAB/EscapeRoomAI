@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EscapeRoomAI - Voice Vote</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --card: #1a1a24;
+    --border: #2a2a3a;
+    --accent: #7c5cff;
+    --accent2: #5a3fd6;
+    --text: #e0e0e8;
+    --muted: #888899;
+    --gold: #ffd700;
+    --silver: #c0c0c0;
+    --bronze: #cd7f32;
+    --success: #34d399;
+    --danger: #f87171;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.6rem; text-align: center; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: var(--muted); font-size: 0.9rem; margin-bottom: 32px; }
+
+  /* Name Entry */
+  #nameScreen { text-align: center; margin-top: 20vh; }
+  #nameScreen h2 { font-size: 1.3rem; margin-bottom: 16px; }
+  #nameInput {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 12px 20px; font-size: 1.1rem; border-radius: 8px; width: 280px;
+    outline: none; text-align: center;
+  }
+  #nameInput:focus { border-color: var(--accent); }
+  #nameInput::placeholder { color: var(--muted); }
+  .hint { color: var(--muted); font-size: 0.8rem; margin-top: 10px; }
+
+  /* Voice Cards */
+  .voice-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 12px; display: flex; align-items: center;
+    gap: 14px; transition: border-color 0.2s;
+  }
+  .voice-card:hover { border-color: #3a3a5a; }
+  .voice-card.selected-1 { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,215,0,0.15); }
+  .voice-card.selected-2 { border-color: var(--silver); box-shadow: 0 0 12px rgba(192,192,192,0.12); }
+  .voice-card.selected-3 { border-color: var(--bronze); box-shadow: 0 0 12px rgba(205,127,50,0.12); }
+
+  .play-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: var(--accent); color: white; cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+    transition: background 0.2s;
+  }
+  .play-btn:hover { background: var(--accent2); }
+  .play-btn.playing { background: var(--danger); }
+
+  .voice-info { flex: 1; min-width: 0; }
+  .voice-name { font-weight: 600; font-size: 1.05rem; }
+  .voice-desc { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+
+  .rank-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .rank-btn {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); cursor: pointer; font-weight: 700;
+    font-size: 0.85rem; transition: all 0.2s;
+  }
+  .rank-btn:hover { border-color: var(--accent); color: var(--text); }
+  .rank-btn.active-1 { background: var(--gold); color: #000; border-color: var(--gold); }
+  .rank-btn.active-2 { background: var(--silver); color: #000; border-color: var(--silver); }
+  .rank-btn.active-3 { background: var(--bronze); color: #000; border-color: var(--bronze); }
+
+  /* Progress bar */
+  .progress-bar {
+    width: 100%; height: 4px; background: var(--border); border-radius: 2px;
+    margin-top: 6px; overflow: hidden;
+  }
+  .progress-fill { height: 100%; background: var(--accent); width: 0; transition: width 0.1s; }
+
+  /* Submit */
+  .submit-area { text-align: center; margin-top: 24px; }
+  .submit-btn {
+    background: var(--accent); color: white; border: none; padding: 14px 48px;
+    font-size: 1.05rem; font-weight: 600; border-radius: 10px; cursor: pointer;
+    transition: background 0.2s; opacity: 0.4; pointer-events: none;
+  }
+  .submit-btn.ready { opacity: 1; pointer-events: auto; }
+  .submit-btn.ready:hover { background: var(--accent2); }
+  .selection-summary { color: var(--muted); font-size: 0.85rem; margin-bottom: 14px; }
+
+  /* Results */
+  #resultsScreen { display: none; }
+  .results-header { text-align: center; margin-bottom: 24px; }
+  .results-header h2 { color: var(--success); margin-bottom: 4px; }
+  .result-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+  }
+  .result-rank { font-weight: 700; font-size: 1.1rem; width: 28px; text-align: center; }
+  .result-name { flex: 1; font-weight: 500; }
+  .result-score { font-weight: 700; color: var(--accent); }
+  .result-bar-bg {
+    width: 120px; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .result-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.5s; }
+  .voter-list { color: var(--muted); font-size: 0.78rem; margin-top: 20px; text-align: center; }
+
+  /* Hidden */
+  .hidden { display: none !important; }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    .voice-card { flex-wrap: wrap; gap: 10px; }
+    .rank-btns { width: 100%; justify-content: center; }
+    .result-bar-bg { width: 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>EscapeRoomAI</h1>
+  <p class="subtitle">AI Agent Voice Selection</p>
+
+  <!-- Name Screen -->
+  <div id="nameScreen">
+    <h2>Enter your name to vote</h2>
+    <input type="text" id="nameInput" placeholder="Your name" autocomplete="off" autofocus>
+    <p class="hint">Press Enter to continue</p>
+  </div>
+
+  <!-- Voting Screen -->
+  <div id="voteScreen" class="hidden">
+    <p style="text-align:center; color:var(--muted); margin-bottom:18px;">
+      Listen to each voice, then pick your <strong>1st</strong>, <strong>2nd</strong>, and <strong>3rd</strong> choice.
+    </p>
+    <div id="voiceList"></div>
+    <div class="submit-area">
+      <p class="selection-summary" id="selectionSummary">Select your top 3 voices</p>
+      <button class="submit-btn" id="submitBtn" onclick="submitVote()">Submit Vote</button>
+    </div>
+  </div>
+
+  <!-- Results Screen -->
+  <div id="resultsScreen">
+    <div class="results-header">
+      <h2>Vote Submitted!</h2>
+      <p style="color:var(--muted); font-size:0.9rem;" id="thankYou"></p>
+    </div>
+    <div id="resultsList"></div>
+    <p class="voter-list" id="voterList"></p>
+  </div>
+</div>
+
+<script>
+const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019d6485-dcca-76be-9073-80c0541e7ec6';
+
+const VOICES = [
+  { id: 'seer-morganna', name: 'Seer Morganna', desc: 'Intimidating and Clear', file: 'Audio/ElevenLabs_2026-04-06T19_20_56_Seer Morganna - Intimidating, and Clear_pvc_sp100_s30_sb57_v3.mp3' },
+  { id: 'dorothy', name: 'Dorothy', desc: 'Insightful, Supportive Grandma', file: 'Audio/ElevenLabs_2026-04-06T19_21_46_Dorothy - Insightful,Supportive Grandma_pvc_sp100_s30_sb57_v3.mp3' },
+  { id: 'empress', name: 'Empress', desc: 'Smoky, Breathy, and Neutral', file: 'Audio/ElevenLabs_2026-04-06T19_24_00_Empress - Smoky, Breathy, and Neutral_pvc_sp100_s30_sb57_v3.mp3' },
+  { id: 'jane', name: 'Jane', desc: 'Professional Audiobook Reader', file: 'Audio/ElevenLabs_2026-04-06T19_32_22_Jane - Professional Audiobook Reader_pvc_sp100_s30_sb57_v3.mp3' },
+  { id: 'clara', name: 'Clara', desc: '', file: 'Audio/ElevenLabs_2026-04-06T19_43_29_Clara_pvc_sp100_s30_sb57_v3.mp3' },
+  { id: 'katie', name: 'Katie', desc: 'Soft Whispering ASMR', file: 'Audio/ElevenLabs_2026-04-06T20_00_45_Katie - Soft Whispering ASMR_pvc_sp100_s50_sb75_v3.mp3' },
+  { id: 'grandma-rachel', name: 'Grandma Rachel', desc: 'Wise Southern Senior', file: 'Audio/ElevenLabs_2026-04-06T20_01_51_Grandma Rachel - Wise Southern Senior_pvc_sp95_s50_sb75_v3.mp3' },
+  { id: 'linda', name: 'Linda', desc: 'Gentle Mom Storytime Voice', file: 'Audio/ElevenLabs_2026-04-06T20_03_28_Linda \u2013 Gentle Mom Storytime Voice_pvc_sp101_s44_sb53_v3.mp3' },
+  { id: 'blue', name: 'Blue', desc: 'Low, Calm with Grit', file: 'Audio/ElevenLabs_2026-04-06T20_06_08_Blue - Low, Calm with Grit _pvc_sp90_s59_sb33_v3.mp3' },
+  { id: 'maria-moody', name: 'Maria Moody', desc: 'Grandmotherly Storykeeper', file: 'Audio/ElevenLabs_2026-04-06T20_07_41_Maria Moody - Grandmotherly Storykeeper_pvc_sp100_s38_sb100_v3.mp3' },
+  { id: 'teacher-rayla', name: 'Teacher Rayla', desc: 'Storyteller', file: 'Audio/ElevenLabs_2026-04-06T20_14_20_Teacher Rayla - Storyteller_pvc_sp100_s50_sb75_v3.mp3' },
+];
+
+let voterName = '';
+let selections = { 1: null, 2: null, 3: null };
+let currentAudio = null;
+let currentPlayBtn = null;
+
+// Check if already voted
+if (localStorage.getItem('escaperoom_voted')) {
+  document.getElementById('nameScreen').classList.add('hidden');
+  loadResults();
+}
+
+// Name entry
+document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const name = e.target.value.trim();
+    if (!name) return;
+    voterName = name;
+    document.getElementById('nameScreen').classList.add('hidden');
+    document.getElementById('voteScreen').classList.remove('hidden');
+    renderVoices();
+  }
+});
+
+function renderVoices() {
+  const list = document.getElementById('voiceList');
+  list.innerHTML = VOICES.map(v => `
+    <div class="voice-card" id="card-${v.id}">
+      <button class="play-btn" id="play-${v.id}" onclick="togglePlay('${v.id}')">&#9654;</button>
+      <div class="voice-info">
+        <div class="voice-name">${v.name}</div>
+        ${v.desc ? `<div class="voice-desc">${v.desc}</div>` : ''}
+        <div class="progress-bar"><div class="progress-fill" id="prog-${v.id}"></div></div>
+      </div>
+      <div class="rank-btns">
+        <button class="rank-btn" onclick="setRank('${v.id}', 1)">1st</button>
+        <button class="rank-btn" onclick="setRank('${v.id}', 2)">2nd</button>
+        <button class="rank-btn" onclick="setRank('${v.id}', 3)">3rd</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function togglePlay(id) {
+  const voice = VOICES.find(v => v.id === id);
+  const btn = document.getElementById('play-' + id);
+  const prog = document.getElementById('prog-' + id);
+
+  if (currentAudio && currentPlayBtn) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentPlayBtn.classList.remove('playing');
+    currentPlayBtn.innerHTML = '&#9654;';
+    const prevId = currentPlayBtn.id.replace('play-', '');
+    document.getElementById('prog-' + prevId).style.width = '0%';
+    if (currentPlayBtn === btn) { currentAudio = null; currentPlayBtn = null; return; }
+  }
+
+  const audio = new Audio(voice.file);
+  currentAudio = audio;
+  currentPlayBtn = btn;
+  btn.classList.add('playing');
+  btn.innerHTML = '&#9724;';
+
+  audio.addEventListener('timeupdate', () => {
+    if (audio.duration) prog.style.width = (audio.currentTime / audio.duration * 100) + '%';
+  });
+  audio.addEventListener('ended', () => {
+    btn.classList.remove('playing');
+    btn.innerHTML = '&#9654;';
+    prog.style.width = '0%';
+    currentAudio = null;
+    currentPlayBtn = null;
+  });
+  audio.play();
+}
+
+function setRank(voiceId, rank) {
+  // If this voice already has this rank, deselect it
+  if (selections[rank] === voiceId) {
+    selections[rank] = null;
+  } else {
+    // Remove this voice from any other rank
+    for (let r = 1; r <= 3; r++) {
+      if (selections[r] === voiceId) selections[r] = null;
+    }
+    // Remove previous holder of this rank
+    selections[rank] = voiceId;
+  }
+  updateUI();
+}
+
+function updateUI() {
+  // Clear all highlights
+  VOICES.forEach(v => {
+    const card = document.getElementById('card-' + v.id);
+    card.classList.remove('selected-1', 'selected-2', 'selected-3');
+    const btns = card.querySelectorAll('.rank-btn');
+    btns.forEach(b => b.className = 'rank-btn');
+  });
+
+  // Apply selections
+  for (let rank = 1; rank <= 3; rank++) {
+    if (selections[rank]) {
+      const card = document.getElementById('card-' + selections[rank]);
+      card.classList.add('selected-' + rank);
+      const btns = card.querySelectorAll('.rank-btn');
+      btns[rank - 1].classList.add('active-' + rank);
+    }
+  }
+
+  // Update summary
+  const summary = document.getElementById('selectionSummary');
+  const labels = ['1st', '2nd', '3rd'];
+  const parts = [];
+  for (let r = 1; r <= 3; r++) {
+    if (selections[r]) {
+      const v = VOICES.find(x => x.id === selections[r]);
+      parts.push(`<strong>${labels[r-1]}:</strong> ${v.name}`);
+    }
+  }
+  summary.innerHTML = parts.length ? parts.join(' &nbsp;&bull;&nbsp; ') : 'Select your top 3 voices';
+
+  // Enable submit if all 3 selected
+  const btn = document.getElementById('submitBtn');
+  if (selections[1] && selections[2] && selections[3]) {
+    btn.classList.add('ready');
+  } else {
+    btn.classList.remove('ready');
+  }
+}
+
+async function submitVote() {
+  if (!selections[1] || !selections[2] || !selections[3]) return;
+
+  const btn = document.getElementById('submitBtn');
+  btn.textContent = 'Submitting...';
+  btn.style.pointerEvents = 'none';
+
+  try {
+    // Fetch existing votes
+    const res = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+
+    // Add new vote
+    data.votes.push({
+      name: voterName,
+      first: selections[1],
+      second: selections[2],
+      third: selections[3],
+      timestamp: new Date().toISOString()
+    });
+
+    // Save back
+    await fetch(BLOB_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    localStorage.setItem('escaperoom_voted', JSON.stringify({ name: voterName, time: Date.now() }));
+    loadResults();
+  } catch (err) {
+    btn.textContent = 'Error - Try Again';
+    btn.style.pointerEvents = 'auto';
+    console.error(err);
+  }
+}
+
+async function loadResults() {
+  document.getElementById('voteScreen').classList.add('hidden');
+  document.getElementById('nameScreen').classList.add('hidden');
+  document.getElementById('resultsScreen').style.display = 'block';
+
+  const stored = JSON.parse(localStorage.getItem('escaperoom_voted') || '{}');
+  document.getElementById('thankYou').textContent = stored.name
+    ? `Thanks for voting, ${stored.name}!`
+    : 'Here are the current results:';
+
+  try {
+    const res = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+    renderResults(data.votes);
+  } catch (err) {
+    document.getElementById('resultsList').innerHTML = '<p style="text-align:center;color:var(--danger);">Could not load results.</p>';
+  }
+}
+
+function renderResults(votes) {
+  // Score: 1st = 3pts, 2nd = 2pts, 3rd = 1pt
+  const scores = {};
+  VOICES.forEach(v => scores[v.id] = 0);
+  votes.forEach(vote => {
+    scores[vote.first] = (scores[vote.first] || 0) + 3;
+    scores[vote.second] = (scores[vote.second] || 0) + 2;
+    scores[vote.third] = (scores[vote.third] || 0) + 1;
+  });
+
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const maxScore = sorted[0]?.[1] || 1;
+
+  const medalColors = ['var(--gold)', 'var(--silver)', 'var(--bronze)'];
+
+  document.getElementById('resultsList').innerHTML = sorted.map(([id, score], i) => {
+    const v = VOICES.find(x => x.id === id);
+    const pct = maxScore > 0 ? (score / maxScore * 100) : 0;
+    const color = i < 3 ? medalColors[i] : 'var(--accent)';
+    return `
+      <div class="result-row">
+        <div class="result-rank" style="color:${i < 3 ? medalColors[i] : 'var(--muted)'}">#${i + 1}</div>
+        <div class="result-name">${v ? v.name : id}</div>
+        <div class="result-bar-bg"><div class="result-bar" style="width:${pct}%;background:${color}"></div></div>
+        <div class="result-score">${score} pts</div>
+      </div>`;
+  }).join('');
+
+  const voterNames = votes.map(v => v.name);
+  document.getElementById('voterList').textContent = votes.length
+    ? `${votes.length} vote${votes.length !== 1 ? 's' : ''} from: ${voterNames.join(', ')}`
+    : 'No votes yet.';
+}
+</script>
+</body>
+</html>
