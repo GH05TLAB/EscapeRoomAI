@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EscapeRoomAI - Voice Vote</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
 <style>
   :root {
     --bg: #0f0f13;
@@ -77,12 +78,21 @@
   .rank-btn.active-2 { background: var(--silver); color: #000; border-color: var(--silver); }
   .rank-btn.active-3 { background: var(--bronze); color: #000; border-color: var(--bronze); }
 
-  /* Progress bar */
-  .progress-bar {
-    width: 100%; height: 4px; background: var(--border); border-radius: 2px;
-    margin-top: 6px; overflow: hidden;
+  /* Seekable slider */
+  .seek-bar {
+    width: 100%; height: 6px; margin-top: 8px; -webkit-appearance: none; appearance: none;
+    background: var(--border); border-radius: 3px; outline: none; cursor: pointer;
   }
-  .progress-fill { height: 100%; background: var(--accent); width: 0; transition: width 0.1s; }
+  .seek-bar::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: none;
+  }
+  .seek-bar::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: none;
+  }
+  .seek-bar::-webkit-slider-runnable-track { background: transparent; }
+  .time-display { color: var(--muted); font-size: 0.72rem; margin-top: 2px; text-align: right; }
 
   /* Submit */
   .submit-area { text-align: center; margin-top: 24px; }
@@ -97,20 +107,58 @@
 
   /* Results */
   #resultsScreen { display: none; }
-  .results-header { text-align: center; margin-bottom: 24px; }
+  .results-header { text-align: center; margin-bottom: 20px; }
   .results-header h2 { color: var(--success); margin-bottom: 4px; }
+
+  /* Voter filter tags */
+  .voter-filter { margin-bottom: 20px; text-align: center; }
+  .voter-filter-label { color: var(--muted); font-size: 0.82rem; margin-bottom: 8px; }
+  .voter-tags { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .voter-tag {
+    padding: 5px 12px; border-radius: 16px; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted); cursor: pointer; font-size: 0.82rem;
+    transition: all 0.2s; user-select: none;
+  }
+  .voter-tag:hover { border-color: var(--accent); color: var(--text); }
+  .voter-tag.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .voter-tag-all {
+    padding: 5px 12px; border-radius: 16px; border: 1px solid var(--accent);
+    background: transparent; color: var(--accent); cursor: pointer; font-size: 0.82rem;
+    transition: all 0.2s; user-select: none; font-weight: 600;
+  }
+  .voter-tag-all:hover { background: var(--accent); color: white; }
+  .voter-tag-all.active { background: var(--accent); color: white; }
+
+  /* Individual voter details */
+  .voter-detail {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 8px;
+  }
+  .voter-detail-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 6px; }
+  .voter-detail-picks { display: flex; gap: 12px; flex-wrap: wrap; }
+  .voter-pick { font-size: 0.85rem; color: var(--muted); }
+  .voter-pick strong { color: var(--text); }
+
   .result-row {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     padding: 14px 18px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
   }
   .result-rank { font-weight: 700; font-size: 1.1rem; width: 28px; text-align: center; }
   .result-name { flex: 1; font-weight: 500; }
-  .result-score { font-weight: 700; color: var(--accent); }
+  .result-score { font-weight: 700; color: var(--accent); min-width: 50px; text-align: right; }
   .result-bar-bg {
     width: 120px; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
   }
   .result-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.5s; }
-  .voter-list { color: var(--muted); font-size: 0.78rem; margin-top: 20px; text-align: center; }
+
+  .section-title {
+    color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 1px;
+    margin: 24px 0 10px; font-weight: 600;
+  }
+
+  .voter-count {
+    color: var(--muted); font-size: 0.8rem; margin-top: 16px; text-align: center;
+  }
 
   /* Hidden */
   .hidden { display: none !important; }
@@ -153,13 +201,24 @@
       <h2>Vote Submitted!</h2>
       <p style="color:var(--muted); font-size:0.9rem;" id="thankYou"></p>
     </div>
+
+    <div class="voter-filter">
+      <p class="voter-filter-label">Filter by voter:</p>
+      <div class="voter-tags" id="voterTags"></div>
+    </div>
+
+    <p class="section-title">Rankings</p>
     <div id="resultsList"></div>
-    <p class="voter-list" id="voterList"></p>
+
+    <p class="section-title">Individual Votes</p>
+    <div id="voterDetails"></div>
+
+    <p class="voter-count" id="voterCount"></p>
   </div>
 </div>
 
 <script>
-const BLOB_URL = 'https://jsonblob.com/api/jsonBlob/019d6485-dcca-76be-9073-80c0541e7ec6';
+const KV_URL = 'https://kvdb.io/A3gKFy2mipJYFeiqnSaafP/votes';
 
 const VOICES = [
   { id: 'seer-morganna', name: 'Seer Morganna', desc: 'Intimidating and Clear', file: 'Audio/ElevenLabs_2026-04-06T19_20_56_Seer Morganna - Intimidating, and Clear_pvc_sp100_s30_sb57_v3.mp3' },
@@ -175,10 +234,15 @@ const VOICES = [
   { id: 'teacher-rayla', name: 'Teacher Rayla', desc: 'Storyteller', file: 'Audio/ElevenLabs_2026-04-06T20_14_20_Teacher Rayla - Storyteller_pvc_sp100_s50_sb75_v3.mp3' },
 ];
 
+const voiceMap = {};
+VOICES.forEach(v => voiceMap[v.id] = v);
+
 let voterName = '';
 let selections = { 1: null, 2: null, 3: null };
 let currentAudio = null;
-let currentPlayBtn = null;
+let currentVoiceId = null;
+let allVotes = [];
+let selectedVoters = new Set(); // empty = all selected
 
 // Check if already voted
 if (localStorage.getItem('escaperoom_voted')) {
@@ -198,6 +262,13 @@ document.getElementById('nameInput').addEventListener('keydown', (e) => {
   }
 });
 
+function fmtTime(s) {
+  if (!s || !isFinite(s)) return '0:00';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
 function renderVoices() {
   const list = document.getElementById('voiceList');
   list.innerHTML = VOICES.map(v => `
@@ -206,7 +277,9 @@ function renderVoices() {
       <div class="voice-info">
         <div class="voice-name">${v.name}</div>
         ${v.desc ? `<div class="voice-desc">${v.desc}</div>` : ''}
-        <div class="progress-bar"><div class="progress-fill" id="prog-${v.id}"></div></div>
+        <input type="range" class="seek-bar" id="seek-${v.id}" min="0" max="100" value="0"
+               oninput="seekAudio('${v.id}', this.value)" />
+        <div class="time-display" id="time-${v.id}">0:00 / 0:00</div>
       </div>
       <div class="rank-btns">
         <button class="rank-btn" onclick="setRank('${v.id}', 1)">1st</button>
@@ -217,57 +290,75 @@ function renderVoices() {
   `).join('');
 }
 
-function togglePlay(id) {
-  const voice = VOICES.find(v => v.id === id);
-  const btn = document.getElementById('play-' + id);
-  const prog = document.getElementById('prog-' + id);
+function seekAudio(id, val) {
+  if (currentAudio && currentVoiceId === id && currentAudio.duration) {
+    currentAudio.currentTime = (val / 100) * currentAudio.duration;
+  }
+}
 
-  if (currentAudio && currentPlayBtn) {
+function togglePlay(id) {
+  const btn = document.getElementById('play-' + id);
+
+  // Stop current audio if playing
+  if (currentAudio) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
-    currentPlayBtn.classList.remove('playing');
-    currentPlayBtn.innerHTML = '&#9654;';
-    const prevId = currentPlayBtn.id.replace('play-', '');
-    document.getElementById('prog-' + prevId).style.width = '0%';
-    if (currentPlayBtn === btn) { currentAudio = null; currentPlayBtn = null; return; }
+    const prevBtn = document.getElementById('play-' + currentVoiceId);
+    if (prevBtn) { prevBtn.classList.remove('playing'); prevBtn.innerHTML = '&#9654;'; }
+    const prevSeek = document.getElementById('seek-' + currentVoiceId);
+    if (prevSeek) prevSeek.value = 0;
+    const prevTime = document.getElementById('time-' + currentVoiceId);
+    if (prevTime) prevTime.textContent = '0:00 / 0:00';
+    if (currentVoiceId === id) { currentAudio = null; currentVoiceId = null; return; }
   }
 
+  const voice = voiceMap[id];
   const audio = new Audio(voice.file);
+  const seek = document.getElementById('seek-' + id);
+  const timeDisp = document.getElementById('time-' + id);
+
   currentAudio = audio;
-  currentPlayBtn = btn;
+  currentVoiceId = id;
   btn.classList.add('playing');
   btn.innerHTML = '&#9724;';
 
+  audio.addEventListener('loadedmetadata', () => {
+    timeDisp.textContent = '0:00 / ' + fmtTime(audio.duration);
+  });
   audio.addEventListener('timeupdate', () => {
-    if (audio.duration) prog.style.width = (audio.currentTime / audio.duration * 100) + '%';
+    if (audio.duration) {
+      seek.value = (audio.currentTime / audio.duration) * 100;
+      timeDisp.textContent = fmtTime(audio.currentTime) + ' / ' + fmtTime(audio.duration);
+      // Update slider fill via gradient
+      const pct = (audio.currentTime / audio.duration) * 100;
+      seek.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--border) ${pct}%)`;
+    }
   });
   audio.addEventListener('ended', () => {
     btn.classList.remove('playing');
     btn.innerHTML = '&#9654;';
-    prog.style.width = '0%';
+    seek.value = 0;
+    seek.style.background = 'var(--border)';
+    timeDisp.textContent = '0:00 / ' + fmtTime(audio.duration);
     currentAudio = null;
-    currentPlayBtn = null;
+    currentVoiceId = null;
   });
   audio.play();
 }
 
 function setRank(voiceId, rank) {
-  // If this voice already has this rank, deselect it
   if (selections[rank] === voiceId) {
     selections[rank] = null;
   } else {
-    // Remove this voice from any other rank
     for (let r = 1; r <= 3; r++) {
       if (selections[r] === voiceId) selections[r] = null;
     }
-    // Remove previous holder of this rank
     selections[rank] = voiceId;
   }
   updateUI();
 }
 
 function updateUI() {
-  // Clear all highlights
   VOICES.forEach(v => {
     const card = document.getElementById('card-' + v.id);
     card.classList.remove('selected-1', 'selected-2', 'selected-3');
@@ -275,7 +366,6 @@ function updateUI() {
     btns.forEach(b => b.className = 'rank-btn');
   });
 
-  // Apply selections
   for (let rank = 1; rank <= 3; rank++) {
     if (selections[rank]) {
       const card = document.getElementById('card-' + selections[rank]);
@@ -285,19 +375,16 @@ function updateUI() {
     }
   }
 
-  // Update summary
   const summary = document.getElementById('selectionSummary');
   const labels = ['1st', '2nd', '3rd'];
   const parts = [];
   for (let r = 1; r <= 3; r++) {
     if (selections[r]) {
-      const v = VOICES.find(x => x.id === selections[r]);
-      parts.push(`<strong>${labels[r-1]}:</strong> ${v.name}`);
+      parts.push(`<strong>${labels[r-1]}:</strong> ${voiceMap[selections[r]].name}`);
     }
   }
   summary.innerHTML = parts.length ? parts.join(' &nbsp;&bull;&nbsp; ') : 'Select your top 3 voices';
 
-  // Enable submit if all 3 selected
   const btn = document.getElementById('submitBtn');
   if (selections[1] && selections[2] && selections[3]) {
     btn.classList.add('ready');
@@ -315,11 +402,11 @@ async function submitVote() {
 
   try {
     // Fetch existing votes
-    const res = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
-    const data = await res.json();
+    const res = await fetch(KV_URL);
+    const votes = await res.json();
 
     // Add new vote
-    data.votes.push({
+    votes.push({
       name: voterName,
       first: selections[1],
       second: selections[2],
@@ -328,10 +415,10 @@ async function submitVote() {
     });
 
     // Save back
-    await fetch(BLOB_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(data)
+    await fetch(KV_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(votes)
     });
 
     localStorage.setItem('escaperoom_voted', JSON.stringify({ name: voterName, time: Date.now() }));
@@ -354,12 +441,60 @@ async function loadResults() {
     : 'Here are the current results:';
 
   try {
-    const res = await fetch(BLOB_URL, { headers: { 'Accept': 'application/json' } });
-    const data = await res.json();
-    renderResults(data.votes);
+    const res = await fetch(KV_URL);
+    allVotes = await res.json();
+    selectedVoters = new Set(); // all selected by default
+    renderVoterTags();
+    renderResultsFromFilter();
   } catch (err) {
     document.getElementById('resultsList').innerHTML = '<p style="text-align:center;color:var(--danger);">Could not load results.</p>';
   }
+}
+
+function renderVoterTags() {
+  const names = [...new Set(allVotes.map(v => v.name))];
+  const tags = document.getElementById('voterTags');
+
+  const allActive = selectedVoters.size === 0;
+  let html = `<span class="voter-tag-all ${allActive ? 'active' : ''}" onclick="selectAllVoters()">All</span>`;
+  names.forEach(name => {
+    const active = selectedVoters.size === 0 || selectedVoters.has(name);
+    html += `<span class="voter-tag ${active ? 'active' : ''}" onclick="toggleVoter('${name.replace(/'/g, "\\'")}')">${name}</span>`;
+  });
+  tags.innerHTML = html;
+}
+
+function selectAllVoters() {
+  selectedVoters = new Set();
+  renderVoterTags();
+  renderResultsFromFilter();
+}
+
+function toggleVoter(name) {
+  // If currently showing "all", switch to only this voter
+  if (selectedVoters.size === 0) {
+    const allNames = [...new Set(allVotes.map(v => v.name))];
+    // Select only this one
+    selectedVoters = new Set([name]);
+  } else if (selectedVoters.has(name)) {
+    selectedVoters.delete(name);
+    // If none left, go back to "all"
+    if (selectedVoters.size === 0) { selectAllVoters(); return; }
+  } else {
+    selectedVoters.add(name);
+    // If all are selected, reset to "all" mode
+    const allNames = [...new Set(allVotes.map(v => v.name))];
+    if (selectedVoters.size === allNames.length) { selectAllVoters(); return; }
+  }
+  renderVoterTags();
+  renderResultsFromFilter();
+}
+
+function renderResultsFromFilter() {
+  const filtered = selectedVoters.size === 0
+    ? allVotes
+    : allVotes.filter(v => selectedVoters.has(v.name));
+  renderResults(filtered);
 }
 
 function renderResults(votes) {
@@ -372,13 +507,24 @@ function renderResults(votes) {
     scores[vote.third] = (scores[vote.third] || 0) + 1;
   });
 
-  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(scores)
+    .filter(([_, s]) => s > 0 || votes.length === 0)
+    .sort((a, b) => b[1] - a[1]);
   const maxScore = sorted[0]?.[1] || 1;
-
   const medalColors = ['var(--gold)', 'var(--silver)', 'var(--bronze)'];
 
-  document.getElementById('resultsList').innerHTML = sorted.map(([id, score], i) => {
-    const v = VOICES.find(x => x.id === id);
+  if (votes.length === 0) {
+    document.getElementById('resultsList').innerHTML = '<p style="text-align:center;color:var(--muted);padding:16px;">No votes to display.</p>';
+    document.getElementById('voterDetails').innerHTML = '';
+    document.getElementById('voterCount').textContent = '';
+    return;
+  }
+
+  // Only show voices that received votes
+  const withVotes = sorted.filter(([_, s]) => s > 0);
+
+  document.getElementById('resultsList').innerHTML = withVotes.map(([id, score], i) => {
+    const v = voiceMap[id];
     const pct = maxScore > 0 ? (score / maxScore * 100) : 0;
     const color = i < 3 ? medalColors[i] : 'var(--accent)';
     return `
@@ -390,10 +536,25 @@ function renderResults(votes) {
       </div>`;
   }).join('');
 
-  const voterNames = votes.map(v => v.name);
-  document.getElementById('voterList').textContent = votes.length
-    ? `${votes.length} vote${votes.length !== 1 ? 's' : ''} from: ${voterNames.join(', ')}`
-    : 'No votes yet.';
+  // Individual vote details
+  const rankLabels = { first: '1st', second: '2nd', third: '3rd' };
+  const rankColors = { first: 'var(--gold)', second: 'var(--silver)', third: 'var(--bronze)' };
+
+  document.getElementById('voterDetails').innerHTML = votes.map(vote => `
+    <div class="voter-detail">
+      <div class="voter-detail-name">${vote.name}</div>
+      <div class="voter-detail-picks">
+        ${['first', 'second', 'third'].map(r => {
+          const v = voiceMap[vote[r]];
+          return `<span class="voter-pick"><span style="color:${rankColors[r]};font-weight:700;">${rankLabels[r]}</span> <strong>${v ? v.name : vote[r]}</strong></span>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  const total = selectedVoters.size === 0 ? allVotes.length : votes.length;
+  const showing = selectedVoters.size > 0 ? ` (showing ${votes.length} of ${allVotes.length})` : '';
+  document.getElementById('voterCount').textContent = `${total} vote${total !== 1 ? 's' : ''} total${showing}`;
 }
 </script>
 </body>
