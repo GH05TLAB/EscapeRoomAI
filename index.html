@@ -181,6 +181,7 @@
     <h2>Enter your name to vote</h2>
     <input type="text" id="nameInput" placeholder="Your name" autocomplete="off" autofocus>
     <p class="hint">Press Enter to continue</p>
+    <p style="margin-top:24px;"><a href="?results" style="color:var(--accent); font-size:0.85rem; text-decoration:none;">Just view results</a></p>
   </div>
 
   <!-- Voting Screen -->
@@ -215,7 +216,7 @@
 
     <p class="voter-count" id="voterCount"></p>
 
-    <div style="text-align:center; margin-top:32px; padding-top:16px; border-top:1px solid var(--border);">
+    <div id="voteAgainArea" style="text-align:center; margin-top:32px; padding-top:16px; border-top:1px solid var(--border);">
       <button onclick="resetMyVote()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem;">Vote Again</button>
     </div>
   </div>
@@ -251,8 +252,13 @@ let currentVoiceId = null;
 let allVotes = [];
 let selectedVoters = new Set(); // empty = all selected
 
-// Check if already voted
-if (localStorage.getItem('escaperoom_voted')) {
+const isViewOnly = new URLSearchParams(window.location.search).has('results');
+
+// Check if view-only mode or already voted
+if (isViewOnly) {
+  document.getElementById('nameScreen').classList.add('hidden');
+  loadResults();
+} else if (localStorage.getItem('escaperoom_voted')) {
   document.getElementById('nameScreen').classList.add('hidden');
   loadResults();
 }
@@ -511,9 +517,15 @@ async function loadResults() {
   document.getElementById('resultsScreen').style.display = 'block';
 
   const stored = JSON.parse(localStorage.getItem('escaperoom_voted') || '{}');
-  document.getElementById('thankYou').textContent = stored.name
-    ? `Thanks for voting, ${stored.name}!`
-    : 'Here are the current results:';
+  if (isViewOnly) {
+    document.getElementById('resultsScreen').querySelector('h2').textContent = 'Current Results';
+    document.getElementById('thankYou').textContent = '';
+    document.getElementById('voteAgainArea').style.display = 'none';
+  } else {
+    document.getElementById('thankYou').textContent = stored.name
+      ? `Thanks for voting, ${stored.name}!`
+      : 'Here are the current results:';
+  }
 
   try {
     const res = await fetch(KV_URL);
