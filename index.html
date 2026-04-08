@@ -217,7 +217,8 @@
     <p class="voter-count" id="voterCount"></p>
 
     <div id="voteAgainArea" style="text-align:center; margin-top:32px; padding-top:16px; border-top:1px solid var(--border);">
-      <button onclick="resetMyVote()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem;">Vote Again</button>
+      <button onclick="resetMyVote()" style="background:transparent; border:1px solid var(--border); color:var(--muted); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem; margin-right:8px;">Vote Again</button>
+      <button onclick="deleteMyVote()" style="background:transparent; border:1px solid var(--danger); color:var(--danger); padding:8px 16px; border-radius:8px; cursor:pointer; font-size:0.8rem;">Delete My Vote</button>
     </div>
   </div>
 </div>
@@ -694,6 +695,16 @@ async function deleteVote(name) {
 
 function resetMyVote() {
   if (!confirm('This will let you vote again. Continue?')) return;
+  localStorage.removeItem('escaperoom_voted');
+  location.reload();
+}
+
+async function deleteMyVote() {
+  const stored = JSON.parse(localStorage.getItem('escaperoom_voted') || '{}');
+  const name = stored.name || voterName;
+  if (!name) { alert('Could not determine your name.'); return; }
+  if (!confirm(`Delete your vote (${name})?`)) return;
+  await deleteVote(name);
   localStorage.removeItem('escaperoom_voted');
   location.reload();
 }
