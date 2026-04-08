@@ -269,11 +269,32 @@ document.getElementById('nameInput').addEventListener('keydown', (e) => {
     const name = e.target.value.trim();
     if (!name) return;
     voterName = name;
+    // Check if this name already voted (case-insensitive)
+    checkExistingVote(name);
+  }
+});
+
+async function checkExistingVote(name) {
+  try {
+    const res = await fetch(KV_URL);
+    const votes = await res.json();
+    const existing = votes.find(v => v.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      // Already voted — go straight to results
+      localStorage.setItem('escaperoom_voted', JSON.stringify({ name: existing.name, time: Date.now() }));
+      loadResults();
+    } else {
+      document.getElementById('nameScreen').classList.add('hidden');
+      document.getElementById('voteScreen').classList.remove('hidden');
+      renderVoices();
+    }
+  } catch (err) {
+    // If fetch fails, let them vote anyway
     document.getElementById('nameScreen').classList.add('hidden');
     document.getElementById('voteScreen').classList.remove('hidden');
     renderVoices();
   }
-});
+}
 
 function fmtTime(s) {
   if (!s || !isFinite(s)) return '0:00';
@@ -629,7 +650,13 @@ function renderResults(votes) {
 
   document.getElementById('voterDetails').innerHTML = votes.map(vote => `
     <div class="voter-detail">
-      <div class="voter-detail-name">${vote.name}</div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="voter-detail-name">${vote.name}</div>
+        <button onclick="deleteVote('${vote.name.replace(/'/g, "\\'")}')"
+          style="background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:0.75rem; padding:2px 6px; opacity:0.5;"
+          onmouseover="this.style.opacity=1;this.style.color='var(--danger)'" onmouseout="this.style.opacity=0.5;this.style.color='var(--muted)'"
+          title="Delete ${vote.name}'s vote">&#10005;</button>
+      </div>
       <div class="voter-detail-picks">
         ${['first', 'second', 'third'].map(r => {
           const v = voiceMap[vote[r]];
@@ -642,6 +669,27 @@ function renderResults(votes) {
   const total = selectedVoters.size === 0 ? allVotes.length : votes.length;
   const showing = selectedVoters.size > 0 ? ` (showing ${votes.length} of ${allVotes.length})` : '';
   document.getElementById('voterCount').textContent = `${total} vote${total !== 1 ? 's' : ''} total${showing}`;
+}
+
+async function deleteVote(name) {
+  if (!confirm(`Delete ${name}'s vote?`)) return;
+  try {
+    const res = await fetch(KV_URL);
+    let votes = await res.json();
+    votes = votes.filter(v => v.name.toLowerCase() !== name.toLowerCase());
+    await fetch(KV_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(votes) });
+    // If deleting own vote, clear localStorage too
+    const stored = JSON.parse(localStorage.getItem('escaperoom_voted') || '{}');
+    if (stored.name && stored.name.toLowerCase() === name.toLowerCase()) {
+      localStorage.removeItem('escaperoom_voted');
+    }
+    allVotes = votes;
+    selectedVoters = new Set();
+    renderVoterTags();
+    renderResultsFromFilter();
+  } catch (err) {
+    alert('Failed to delete vote: ' + err.message);
+  }
 }
 
 function resetMyVote() {
